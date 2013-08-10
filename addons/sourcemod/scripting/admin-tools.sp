@@ -38,8 +38,10 @@
 #include <sdktools>
 #include <smlib>
 #include <smlib/pluginmanager>
-#include <cstrike>
 #include <regex>
+
+#undef REQUIRE_EXTENSIONS
+#include <cstrike>
 
 /***************************************************************************************
 
@@ -50,9 +52,9 @@
 ***************************************************************************************/
 public Plugin:myinfo = {
 	name 						= "admin-tools",
-	author 						= "BCServ",
+	author 						= "Chanz, Berni",
 	description 				= "Collection of mighty admin commands",
-	version 					= "1.0",
+	version 					= "1.1",
 	url 						= "http://bcserv.eu/"
 }
 
@@ -143,6 +145,14 @@ new bool:g_bClient_IsBuried[MAXPLAYERS+1];
 // Alias Command To Data Mapping
 new Handle:g_hAlias_ToDataPack = INVALID_HANDLE;
 
+// Guessed SDK version
+new EngineVersion:engineVersion = Engine_Unknown;
+
+// Whether the cstrike extension is loaded or not
+new bool:isCstrikeExtensionLoaded = false;
+
+
+
 /***************************************************************************************
 
 
@@ -209,19 +219,24 @@ public OnPluginStart()
 	ParseEventKVCheck("resource/hltvevents.res");
 	ParseEventKVCheck("resource/replayevents.res");
 	ParseEventKVCheck("resource/modevents.res");
-	
+
+	// Feature detection
+	engineVersion = GetEngineVersion();
+
+	// Check if the extension is loaded
+	if (GetExtensionFileStatus("cstrike.ext") == 1) {
+		isCstrikeExtensionLoaded = true;
+	}
 }
 
 public OnMapStart()
 {
-	new sdkVersion = GuessSDKVersion();
-	
 	// hax against valvefail (thx psychonic for fix)
-	if(sdkVersion == SOURCE_SDK_EPISODE2VALVE){
+	if (engineVersion == Engine_SourceSDK2007){
 		SetConVarString(Plugin_VersionCvar, Plugin_Version);
 	}
-	
-	if(sdkVersion == SOURCE_SDK_LEFT4DEAD2){
+
+	if (engineVersion == Engine_Left4Dead2){
 		
 		g_iSprite_LaserBeam = PrecacheModel("materials/sprites/laserbeam.vmt");
 		//g_iSprite_Halo = PrecacheModel("materials/sprites/glow01.vmt");
@@ -233,8 +248,10 @@ public OnMapStart()
 	}
 
 	ClearEvents();
-	
-	CreateTimer(1.0, Timer_LateMapStart, INVALID_HANDLE, TIMER_FLAG_NO_MAPCHANGE);
+
+	if (isCstrikeExtensionLoaded) {
+		CreateTimer(1.0, Timer_LateMapStart, INVALID_HANDLE, TIMER_FLAG_NO_MAPCHANGE);
+	}
 }
 
 public OnConfigsExecuted()
@@ -3069,7 +3086,11 @@ stock FakeClientCommandChainable(client, const String:format[], any:...){
 }
 
 GetSpawnPointCount(team){
-	
+
+	if (!isCstrikeExtensionLoaded) {
+		return 0;
+	}
+
 	return CS_GetSpawnPointCount(team);
 }
 
@@ -3100,9 +3121,14 @@ stock CS_GetSpawnPointCount(team)
 }
 
 stock RespawnPlayer(client){
-	
-	// TODO Make it work in all games
-	CS_RespawnPlayer(client);
+
+	if (GetEngineVersion() == Engine_CSS) {
+		// TODO Make it work in all games
+		CS_RespawnPlayer(client);
+	}
+	else {
+		ThrowError("This plugin does not support RespawnPlayer on this game");
+	}
 }
 
 stock bool:SwitchTeam(client, team){
