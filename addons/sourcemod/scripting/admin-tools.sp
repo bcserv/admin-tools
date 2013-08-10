@@ -1644,13 +1644,16 @@ public Action:Command_Disarm(client, args) {
 		ReplyToTargetError(client,target_count);
 		return Plugin_Handled;
 	}
-	
+
 	for (new i=0; i<target_count; ++i) {
-
-		LOOP_CLIENTWEAPONS(target_list[i],weapon,index){
-
-			CS_DropWeapon(target_list[i],weapon,false,true);
-			Entity_Kill(weapon);
+		if (engineVersion == Engine_CSS && isCstrikeExtensionLoaded) {
+			LOOP_CLIENTWEAPONS(target_list[i],weapon,index) {
+				CS_DropWeapon(target_list[i],weapon,false,true);
+				Entity_Kill(weapon);
+			}
+		}
+		else {
+			Client_RemoveAllWeapons(target_list[i]);
 		}
 	}
 
@@ -3087,7 +3090,7 @@ stock FakeClientCommandChainable(client, const String:format[], any:...){
 
 GetSpawnPointCount(team){
 
-	if (!isCstrikeExtensionLoaded) {
+	if (engineVersion != Engine_CSS || !isCstrikeExtensionLoaded) {
 		return 0;
 	}
 
@@ -3122,7 +3125,7 @@ stock CS_GetSpawnPointCount(team)
 
 stock RespawnPlayer(client){
 
-	if (GetEngineVersion() == Engine_CSS) {
+	if (GetEngineVersion() == Engine_CSS && isCstrikeExtensionLoaded) {
 		// TODO Make it work in all games
 		CS_RespawnPlayer(client);
 	}
@@ -3150,26 +3153,28 @@ stock bool:SwitchTeam(client, team){
 	if (currentTeam == TEAM_UNASSIGNED || currentTeam == TEAM_SPECTATOR) {
 		
 		ChangeClientTeam(client, team);
-		
-		// Hide the model selection menu
-		switch (team) {
-			
-			case CS_TEAM_T:{
-				ShowVGUIPanel(client, "class_ter", INVALID_HANDLE, false);
+
+		if (engineVersion == Engine_CSS) {
+			// Hide the model selection menu
+			switch (team) {
+				
+				case CS_TEAM_T:{
+					ShowVGUIPanel(client, "class_ter", INVALID_HANDLE, false);
+				}
+				case CS_TEAM_CT:{
+					ShowVGUIPanel(client, "class_ct", INVALID_HANDLE, false);
+				}
 			}
-			case CS_TEAM_CT:{
-				ShowVGUIPanel(client, "class_ct", INVALID_HANDLE, false);
-			}
+
+			// Choose model class
+			ClientCommand(client, "joinclass %d", Math_GetRandomInt(0,3));
 		}
-		
-		// Choose model class
-		ClientCommand(client, "joinclass %d", Math_GetRandomInt(0,3));
 	}
 	else {
-		
-		// Target is spec we need to change the team instead of just switching it
-		if (team == TEAM_SPECTATOR) {
-			
+		if (engineVersion != Engine_CSS
+				|| !isCstrikeExtensionLoaded
+				|| team == TEAM_SPECTATOR) {
+			// Target is spec we need to change the team instead of just switching it
 			ChangeClientTeam(client, team);
 		}
 		else {
