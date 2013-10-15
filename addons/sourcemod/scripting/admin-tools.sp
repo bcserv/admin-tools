@@ -54,7 +54,7 @@ public Plugin:myinfo = {
 	name 						= "admin-tools",
 	author 						= "Chanz, Berni",
 	description 				= "Collection of mighty admin commands",
-	version 					= "1.1",
+	version 					= "1.2",
 	url 						= "http://bcserv.eu/"
 }
 
@@ -126,10 +126,11 @@ new Handle:g_hEvent_ToArray = INVALID_HANDLE;
 new Handle:g_hEvent_KeyList = INVALID_HANDLE;
 
 // Library Load Checks
-
+new bool:g_bExtensionCstrikeLoaded = false; // Whether the cstrike extension is loaded or not
 
 // Game Variables
 new Handle:g_hGame_EventKeyList = INVALID_HANDLE;
+new EngineVersion:g_evEngine_Version = Engine_Unknown; // Guessed SDK version
 
 // Map Variables
 new g_iSprite_LaserBeam = -1;
@@ -144,13 +145,6 @@ new bool:g_bClient_IsBuried[MAXPLAYERS+1];
 
 // Alias Command To Data Mapping
 new Handle:g_hAlias_ToDataPack = INVALID_HANDLE;
-
-// Guessed SDK version
-new EngineVersion:engineVersion = Engine_Unknown;
-
-// Whether the cstrike extension is loaded or not
-new bool:isCstrikeExtensionLoaded = false;
-
 
 
 /***************************************************************************************
@@ -221,22 +215,23 @@ public OnPluginStart()
 	ParseEventKVCheck("resource/modevents.res");
 
 	// Feature detection
-	engineVersion = GetEngineVersion();
+	g_evEngine_Version = GetEngineVersion();
 
 	// Check if the extension is loaded
-	if (GetExtensionFileStatus("cstrike.ext") == 1) {
-		isCstrikeExtensionLoaded = true;
+
+	if (GetExtensionFileStatus("game.cstrike.ext") == 1) {
+		g_bExtensionCstrikeLoaded = true;
 	}
 }
 
 public OnMapStart()
 {
 	// hax against valvefail (thx psychonic for fix)
-	if (engineVersion == Engine_SourceSDK2007){
+	if (g_evEngine_Version == Engine_SourceSDK2007){
 		SetConVarString(Plugin_VersionCvar, Plugin_Version);
 	}
 
-	if (engineVersion == Engine_Left4Dead2){
+	if (g_evEngine_Version == Engine_Left4Dead2){
 		
 		g_iSprite_LaserBeam = PrecacheModel("materials/sprites/laserbeam.vmt");
 		//g_iSprite_Halo = PrecacheModel("materials/sprites/glow01.vmt");
@@ -249,9 +244,7 @@ public OnMapStart()
 
 	ClearEvents();
 
-	if (isCstrikeExtensionLoaded) {
-		CreateTimer(1.0, Timer_LateMapStart, INVALID_HANDLE, TIMER_FLAG_NO_MAPCHANGE);
-	}
+	CreateTimer(1.0, Timer_LateMapStart, INVALID_HANDLE, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 public OnConfigsExecuted()
@@ -1646,7 +1639,7 @@ public Action:Command_Disarm(client, args) {
 	}
 
 	for (new i=0; i<target_count; ++i) {
-		if (engineVersion == Engine_CSS && isCstrikeExtensionLoaded) {
+		if (g_evEngine_Version == Engine_CSS && g_bExtensionCstrikeLoaded) {
 			LOOP_CLIENTWEAPONS(target_list[i],weapon,index) {
 				CS_DropWeapon(target_list[i],weapon,false,true);
 				Entity_Kill(weapon);
@@ -2891,7 +2884,7 @@ ParseEventKVCheck(const String:path[PLATFORM_MAX_PATH]){
 		ParseEventKV(path);
 	}
 	else {
-		PrintToServer("[%s] Can't find event resource file: %s", path, Plugin_Name);
+		LogError("Can't find event resource file: %s", path);
 	}
 }
 
@@ -3090,7 +3083,7 @@ stock FakeClientCommandChainable(client, const String:format[], any:...){
 
 GetSpawnPointCount(team){
 
-	if (engineVersion != Engine_CSS || !isCstrikeExtensionLoaded) {
+	if (g_evEngine_Version != Engine_CSS || !g_bExtensionCstrikeLoaded) {
 		return 0;
 	}
 
@@ -3101,21 +3094,23 @@ stock CS_GetSpawnPointCount(team)
 {
 	new count = 0;
 	new entity = -1;
-	
+
 	switch (team) {
 		
 		case TEAM_ONE:{
 			
 			while ((entity = FindEntityByClassname(entity, "info_player_terrorist")) != INVALID_ENT_REFERENCE) {
 				
-			    count++;
+				//PrintToServer("info_player_terrorist m_iTeamNum: %d", GetEntProp(entity, Prop_Data, "m_iTeamNum"));
+				count++;
 			}
 		}
 		case TEAM_TWO:{
 			
 			while ((entity = FindEntityByClassname(entity, "info_player_counterterrorist")) != INVALID_ENT_REFERENCE) {
-				
-			    count++;
+
+				//PrintToServer("info_player_counterterrorist m_iTeamNum: %d", GetEntProp(entity, Prop_Data, "m_iTeamNum"));
+				count++;
 			}
 		}
 	}
@@ -3125,7 +3120,7 @@ stock CS_GetSpawnPointCount(team)
 
 stock RespawnPlayer(client){
 
-	if (GetEngineVersion() == Engine_CSS && isCstrikeExtensionLoaded) {
+	if (GetEngineVersion() == Engine_CSS && g_bExtensionCstrikeLoaded) {
 		// TODO Make it work in all games
 		CS_RespawnPlayer(client);
 	}
@@ -3154,7 +3149,7 @@ stock bool:SwitchTeam(client, team){
 		
 		ChangeClientTeam(client, team);
 
-		if (engineVersion == Engine_CSS) {
+		if (g_evEngine_Version == Engine_CSS) {
 			// Hide the model selection menu
 			switch (team) {
 				
@@ -3171,8 +3166,8 @@ stock bool:SwitchTeam(client, team){
 		}
 	}
 	else {
-		if (engineVersion != Engine_CSS
-				|| !isCstrikeExtensionLoaded
+		if (g_evEngine_Version != Engine_CSS
+				|| !g_bExtensionCstrikeLoaded
 				|| team == TEAM_SPECTATOR) {
 			// Target is spec we need to change the team instead of just switching it
 			ChangeClientTeam(client, team);
