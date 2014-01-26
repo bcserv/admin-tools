@@ -51,10 +51,10 @@
 
 ***************************************************************************************/
 public Plugin:myinfo = {
-	name 						= "admin-tools",
+	name 						= "Admin Tools",
 	author 						= "Chanz, Berni",
 	description 				= "Collection of mighty admin commands",
-	version 					= "1.2",
+	version 					= "1.3",
 	url 						= "http://bcserv.eu/"
 }
 
@@ -72,7 +72,7 @@ public Plugin:myinfo = {
 	
 #define EVENT_COMMAND_HOOK_MODE EventHookMode_Pre
 
-#define COMMAND_ALIAS_DESCRIPTION "This is a custom generated alias command, created by Admin-Tools"
+#define COMMAND_ALIAS_DESCRIPTION "This is a custom generated alias command by Admin-Tools"
 
 #define MAX_BEAM_DURATION 25.0 // 25 is max
 /***************************************************************************************
@@ -327,7 +327,7 @@ public Action:Timer_Future(Handle:timer, Handle:dataPack)
 	ResetPack(dataPack);
 	new userId = ReadPackCell(dataPack);
 	new client = -1;
-	if (userId == 0) {
+	if (userId <= 0) {
 		client = 0;
 	}
 	else {
@@ -622,35 +622,43 @@ public Action:Command_AliasUse(client, args) {
 	
 	
 	new bool:hasAccess = false;
-	
 	new AdminFlag:adminFlag = AdminFlag:-1;
-	switch(accessType){
-		case ACCESS_TYPE_ANYONE:{
-			
-			hasAccess = true;
-		}
-		case ACCESS_TYPE_FLAG:{
-			if (!FindFlagByChar(access[0], adminFlag)) {
-				LogError("accessType is ACCESS_TYPE_FLAG, but access[0] contains no valid flag char");
-				return Plugin_Continue;
-			}
-			hasAccess = Client_HasAdminFlags(client, FlagToBit(adminFlag));
-		}
-		case ACCESS_TYPE_COMMAND:{
-			
-			hasAccess = CheckCommandAccess(client, access, ADMFLAG_ROOT);
-		}
-		case ACCESS_TYPE_GROUP:{
-			
-			new AdminId:adminId = GetUserAdmin(client);
-			if (adminId != INVALID_ADMIN_ID && AdminInheritGroup(adminId, FindAdmGroup(access))) {
+
+	if (client == 0) {
+		hasAccess = true;
+	}
+	else {
+		switch(accessType){
+
+			case ACCESS_TYPE_ANYONE:{
 				
 				hasAccess = true;
 			}
-		}
-		default:{
-			LogError("accessType is invalid (%d)",accessType);
-			return Plugin_Continue;
+			case ACCESS_TYPE_FLAG:{
+
+				if (!FindFlagByChar(access[0], adminFlag)) {
+
+					LogError("accessType is ACCESS_TYPE_FLAG, but access[0] contains no valid flag char");
+					return Plugin_Continue;
+				}
+				hasAccess = Client_HasAdminFlags(client, FlagToBit(adminFlag));
+			}
+			case ACCESS_TYPE_COMMAND:{
+				
+				hasAccess = CheckCommandAccess(client, access, ADMFLAG_ROOT);
+			}
+			case ACCESS_TYPE_GROUP:{
+				
+				new AdminId:adminId = GetUserAdmin(client);
+				if (adminId != INVALID_ADMIN_ID && AdminInheritGroup(adminId, FindAdmGroup(access))) {
+					
+					hasAccess = true;
+				}
+			}
+			default:{
+				LogError("accessType is invalid (%d)",accessType);
+				return Plugin_Continue;
+			}
 		}
 	}
 	
@@ -785,7 +793,7 @@ public Action:Command_Health(client, args) {
 
 		for (new i=0; i<target_count; ++i) {
 			
-			ReplyToCommand(client, "%sTarget health is %d",Plugin_Tag,GetClientHealth(target_list[i]));
+			ReplyToCommand(client, "%sTarget health is %d", Plugin_Tag, GetClientHealth(target_list[i]));
 		}
 		
 		return Plugin_Handled;
@@ -813,6 +821,76 @@ public Action:Command_Health(client, args) {
 	AdminToolsShowActivity(client, Plugin_Tag, "Set health to %d for target %s", health, target);
 	return Plugin_Handled;
 }
+
+public Action:Command_MaxHealth(client, args) {
+
+	if (args != 2 && args != 1) {
+		
+		decl String:command[MAX_NAME_LENGTH];
+		GetCmdArg(0,command,sizeof(command));
+		ReplyToCommand(client, "%sUsage: %s <target> <[+|-]value>",Plugin_Tag,command);
+		return Plugin_Handled;
+	}
+	
+	decl String:target[MAX_TARGET_LENGTH], String:arg2[8];
+	GetCmdArg(1, target, sizeof(target));
+	
+	decl String:target_name[MAX_TARGET_LENGTH];
+	decl target_list[MAXPLAYERS+1];
+	decl bool:tn_is_ml;
+	
+	new target_count = ProcessTargetString(
+		target,
+		client,
+		target_list,
+		sizeof(target_list),
+		COMMAND_FILTER_ALIVE,
+		target_name,
+		sizeof(target_name),
+		tn_is_ml
+	);
+	
+	if (target_count <= 0) {
+		ReplyToTargetError(client,target_count);
+		return Plugin_Handled;
+	}
+	
+	if(args == 1){
+		
+		LogAction(client, -1, "\"%L\" has seen max health of target %s", client, target);
+		AdminToolsShowActivity(client, Plugin_Tag, "Showing max health of target %s", target);
+
+		for (new i=0; i<target_count; ++i) {
+			
+			ReplyToCommand(client, "%sTarget max health is %d", Plugin_Tag, Entity_GetMaxHealth(target_list[i]));
+		}
+		
+		return Plugin_Handled;
+	}
+	
+	GetCmdArg(2, arg2, sizeof(arg2));
+	new health = StringToInt(arg2);
+	
+	if (arg2[0] == '-' || arg2[0] == '+') {
+		
+		for (new i=0; i<target_count; ++i) {
+			
+			Entity_SetMaxHealth(target_list[i], Entity_GetMaxHealth(target_list[i])+health);
+		}
+	}
+	else {
+		
+		for (new i=0; i<target_count; ++i) {
+			
+			Entity_SetMaxHealth(target_list[i], health);
+		}
+	}
+	
+	LogAction(client, -1, "\"%L\" sets health to %d for target %s", client, health, target);
+	AdminToolsShowActivity(client, Plugin_Tag, "Set health to %d for target %s", health, target);
+	return Plugin_Handled;
+}
+
 public Action:Command_Armor(client, args) {
 	
 	if (args != 2 && args != 1) {
@@ -2651,7 +2729,7 @@ public Action:Event_CommandEvent(Handle:event, const String:name[], bool:dontBro
 
 			new userId = ReadPackCell(dataPack);
 			new owner = -1;
-			if(userId == 0){
+			if(userId <= 0){
 				owner = 0;
 			}
 			else {
@@ -2788,6 +2866,8 @@ RegisterAdminTools(){
 	// Clients & Sometimes Entities
 	PluginManager_RegAdminCmd("sm_hp", Command_Health, ADMFLAG_CUSTOM4,"Sets the health of a target");
 	PluginManager_RegAdminCmd("sm_health", Command_Health, ADMFLAG_CUSTOM4,"Sets the health of a target");
+	PluginManager_RegAdminCmd("sm_mhp", Command_MaxHealth, ADMFLAG_CUSTOM4,"Sets the max health of a target");
+	PluginManager_RegAdminCmd("sm_maxhealth", Command_MaxHealth, ADMFLAG_CUSTOM4,"Sets the max health of a target");
 	PluginManager_RegAdminCmd("sm_armor", Command_Armor, ADMFLAG_CUSTOM4,"Sets the armor of a target");
 	PluginManager_RegAdminCmd("sm_armour", Command_Armor, ADMFLAG_CUSTOM4,"Sets the armor of a target");
 	PluginManager_RegAdminCmd("sm_suitpower", Command_Armor, ADMFLAG_CUSTOM4,"Sets the armor of a target");
@@ -3054,7 +3134,7 @@ stock bool:Client_GetCrossHairAimPos(client, Float:pos[3])
 stock ServerCommandChainable(const String:format[], any:...){
 
 	decl String:vFormat[192];
-	VFormat(vFormat, sizeof(vFormat), format, 3);
+	VFormat(vFormat, sizeof(vFormat), format, 2);
 
 	decl String:buffers[10][192];
 	new size = ExplodeString(vFormat, ";", buffers, sizeof(buffers), sizeof(buffers[]), true);
