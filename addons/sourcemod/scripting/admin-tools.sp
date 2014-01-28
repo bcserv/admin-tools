@@ -54,7 +54,7 @@ public Plugin:myinfo = {
 	name 						= "Admin Tools",
 	author 						= "Chanz, Berni",
 	description 				= "Collection of mighty admin commands",
-	version 					= "1.3",
+	version 					= "1.4",
 	url 						= "http://bcserv.eu/"
 }
 
@@ -2276,6 +2276,133 @@ public Action:Command_Money(client, args) {
 	return Plugin_Handled;
 }
 
+public Action:Command_KSay(client, args) {
+
+	if (args < 3) {
+		
+		decl String:command[MAX_NAME_LENGTH];
+		GetCmdArg(0,command,sizeof(command));
+		ReplyToCommand(client, "%sUsage: %s <target> <duration> <text>",Plugin_Tag,command);
+		return Plugin_Handled;
+	}
+	
+	decl String:target[MAX_TARGET_LENGTH];
+	GetCmdArg(1, target, sizeof(target));
+	
+	decl String:target_name[MAX_TARGET_LENGTH];
+	decl target_list[MAXPLAYERS+1];
+	decl bool:tn_is_ml;
+	
+	new target_count = ProcessTargetString(
+		target,
+		client,
+		target_list,
+		sizeof(target_list),
+		COMMAND_FILTER_ALIVE,
+		target_name,
+		sizeof(target_name),
+		tn_is_ml
+	);
+	
+	if (target_count <= 0) {
+		ReplyToTargetError(client, target_count);
+		return Plugin_Handled;
+	}
+
+	decl String:arg2[11];
+	GetCmdArg(2, arg2, sizeof(arg2));
+	new Float:duration = StringToFloat(arg2);
+	if (duration <= 0.0) {
+		ReplyToCommand(client, "%sThe parameter 'duration' seems to be invalid", Plugin_Tag);
+		return Plugin_Handled;
+	}
+
+	// using 11+MAX_TARGET_LENGTH because target and arg2 are being removed:
+	decl String:argString[192+11+MAX_TARGET_LENGTH];
+	GetCmdArgString(argString, sizeof(argString));
+
+	// Replace all the escaped \n with actual \n.
+	ReplaceStringEx(argString, sizeof(argString), "\\n", "\n", -1, -1, false);
+
+	// Remove the first and second argument.
+	ReplaceStringEx(argString,sizeof(argString),target,"", -1, -1, false);
+	ReplaceStringEx(argString,sizeof(argString),arg2,"", -1, -1, false);
+	String_Trim(argString,argString,sizeof(argString), " \t\"");
+
+	if(argString[0] == '\0'){
+		ReplyToCommand(client, "%sThe parameter 'text' seems to be invalid", Plugin_Tag);
+		return Plugin_Handled;
+	}
+	
+	LogAction(client, -1, "\"%L\" triggered sm_ksay, target: %s, duration %.1f (text  %s)", client, target, duration, argString);
+	AdminToolsShowActivity(client, Plugin_Tag, "triggered sm_ksay, target: %s, duration %.1f (text  %s)", target, duration, argString);
+
+	// Datapack:
+	// Float duration
+	// String: text
+	// int number of targets
+	// int all targets
+	// int ...
+	new Handle:dataPack = CreateDataPack();
+	WritePackFloat(dataPack, duration);
+	WritePackString(dataPack, argString);
+	WritePackCell(dataPack, sizeof(target_count));
+	for (new i=0; i<target_count; ++i) {
+		WritePackCell(dataPack, target_list[i]);
+	}
+	
+	// Direct call because we want to display the message and then wait a second.
+	Timer_KSay(INVALID_HANDLE, dataPack);
+	return Plugin_Handled;
+}
+
+public Action:Timer_KSay(Handle:timer, any:dataPack) {
+
+	ResetPack(dataPack);
+
+	// If its the first run, don't subtract a second here 
+	new Float:duration = ReadPackFloat(dataPack) - ((timer == INVALID_HANDLE) ? 0.0 : 1.0);
+	decl String:text[192];
+	ReadPackString(dataPack, text, sizeof(text));
+	new target_count = ReadPackCell(dataPack);
+	decl target_list[MAXPLAYERS+1];
+
+	for (new i=0; i<target_count; ++i) {
+
+		target_list[i] = ReadPackCell(dataPack);
+
+		// We are done, clear the key hint box.
+		if (duration <= 0.0) {
+			Client_PrintKeyHintText(target_list[i], " ");
+		}
+		else {
+			Client_PrintKeyHintText(target_list[i], text);
+		}
+	}
+
+	// We are done, close the datapack.
+	if (duration <= 0.0) {
+		CloseHandle(dataPack);
+		return Plugin_Continue;
+	}
+
+	// Don't destroy the datapack but clear it.
+	ResetPack(dataPack, true);
+
+	// Now repack the datapack for a new run.
+	WritePackFloat(dataPack, duration);
+	WritePackString(dataPack, text);
+	WritePackCell(dataPack, sizeof(target_count));
+	for (new i=0; i<target_count; ++i) {
+		WritePackCell(dataPack, target_list[i]);
+	}
+
+	// Wait a second or whats left of duration, if its below a second.
+	new Float:nextTick = (duration >= 1.0) ? 1.0 : duration;
+	CreateTimer(nextTick, Timer_KSay, dataPack, TIMER_FLAG_NO_MAPCHANGE);
+	return Plugin_Continue;
+}
+
 /**************************************************************************************
 	T E A M
 **************************************************************************************/
@@ -2898,6 +3025,7 @@ RegisterAdminTools(){
 	PluginManager_RegAdminCmd("sm_bury", Command_Bury, ADMFLAG_CUSTOM4, "Buries the given target");
 	PluginManager_RegAdminCmd("sm_money", Command_Money, ADMFLAG_CUSTOM4, "Set money for the given target");
 	PluginManager_RegAdminCmd("sm_cash", Command_Money, ADMFLAG_CUSTOM4, "Set money for the given target");
+	PluginManager_RegAdminCmd("sm_ksay", Command_KSay, ADMFLAG_CUSTOM4, "Sends a message to the key hint box");
 	
 	// Teams
 	//PluginManager_RegAdminCmd("sm_teamscore", Command_SetTeamScore, ADMFLAG_CUSTOM4, "Sets the score of the target team");
