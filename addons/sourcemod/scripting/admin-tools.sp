@@ -54,7 +54,7 @@ public Plugin:myinfo = {
 	name 						= "Admin Tools",
 	author 						= "Chanz, Berni",
 	description 				= "Collection of mighty admin commands",
-	version 					= "1.4",
+	version 					= "1.5",
 	url 						= "http://bcserv.eu/"
 }
 
@@ -140,6 +140,7 @@ new g_iMap_SpawnPoints[MAX_TEAMS];
 new bool:g_bClient_PointActivated[MAXPLAYERS+1];
 new Float:g_flClient_PointSize[MAXPLAYERS+1];
 new bool:g_bClient_IsBuried[MAXPLAYERS+1];
+new bool:g_bClient_HadFirstSpawn[MAXPLAYERS+1];
 
 // M i s c
 
@@ -185,7 +186,7 @@ public OnPluginStart()
 	g_cvarMpTimelimit = FindConVar("mp_timelimit");
 	
 	// Event Hooks
-
+	PluginManager_HookEvent("player_spawn", Event_PlayerSpawn, EventHookMode_Post, false);
 
 	// Library
 	
@@ -265,6 +266,11 @@ public OnClientPutInServer(client)
 public OnClientPostAdminCheck(client)
 {
 	Client_Initialize(client);
+}
+
+public OnClientDisconnect(client)
+{
+	g_bClient_HadFirstSpawn[client] = false;
 }
 
 /**************************************************************************************
@@ -1819,9 +1825,11 @@ public Action:Command_Respawn(client, args) {
 		tn_is_ml
 	);
 
+	// Remove players that are not in the right teams, to prevent ghost spawning.
+	// Example: Respawning a spectator is a bad idea.
 	for (new i=0; i<target_count; ++i) {
 
-		if(!Client_IsValid(target_list[i]) || GetClientTeam(target_list[i]) <= 1){
+		if(!g_bClient_HadFirstSpawn[client] || !Client_IsValid(target_list[i]) || !IsClientInGame(client) || GetClientTeam(target_list[i]) == TEAM_SPECTATOR){
 
 			new j = i;
 			for (; j+1<target_count; ++j) {
@@ -1847,6 +1855,7 @@ public Action:Command_Respawn(client, args) {
 	AdminToolsShowActivity(client, Plugin_Tag, "Respawned target %s", target);
 	return Plugin_Handled;
 }
+
 public Action:Command_Team(client, args) {
 
 	if (args != 2) {
@@ -2836,6 +2845,17 @@ public Action:Command_Deprecated(client,args){
 	E V E N T S
 
 **************************************************************************************/
+public Action:Event_PlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast){
+
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (!Client_IsValid(client)) {
+		return Plugin_Continue;
+	}
+
+	g_bClient_HadFirstSpawn[client] = true;
+	return Plugin_Continue;
+}
+
 public Action:Event_CommandEvent(Handle:event, const String:name[], bool:dontBroadcast){
 
 	new String:eventName[MAX_NAME_LENGTH];
@@ -3326,11 +3346,20 @@ stock CS_GetSpawnPointCount(team)
 	return count;
 }
 
-stock RespawnPlayer(client){
-
-	if (GetEngineVersion() == Engine_CSS && g_bExtensionCstrikeLoaded) {
+stock RespawnPlayer(client)
+{
+	new EngineVersion:engineVersion = GetEngineVersion();
+	if (engineVersion == Engine_CSS && g_bExtensionCstrikeLoaded) {
 		// TODO Make it work in all games
 		CS_RespawnPlayer(client);
+	}
+	// TODO: This maybe break at some day, but Synergy is 19 and we respawn players with DispatchSpawn in this game.
+	else if (engineVersion == EngineVersion:19) {
+
+		if (IsPlayerAlive(client)) {
+			ForcePlayerSuicide(client);
+		}
+		DispatchSpawn(client);
 	}
 	else {
 		ThrowError("This plugin does not support RespawnPlayer on this game");
@@ -3411,11 +3440,16 @@ stock Client_Initialize(client)
 	// Functions
 	
 	
-	/* Functions where the player needs to be in game 
+	/* Functions where the player needs to be in game */
 	if(!IsClientInGame(client)){
 		return;
 	}
-	*/
+	
+	if (!IsPlayerAlive(client)) {
+		return;
+	}
+
+	g_bClient_HadFirstSpawn[client] = true;
 }
 
 stock Client_InitializeVariables(client)
@@ -3423,6 +3457,7 @@ stock Client_InitializeVariables(client)
 	// Client Variables
 	g_bClient_PointActivated[client] = false;
 	g_bClient_IsBuried[client] = false;
+	g_bClient_HadFirstSpawn[client] = false;
 }
 
 
