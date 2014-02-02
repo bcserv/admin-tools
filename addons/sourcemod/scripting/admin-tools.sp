@@ -54,7 +54,7 @@ public Plugin:myinfo = {
 	name 						= "Admin Tools",
 	author 						= "Chanz, Berni",
 	description 				= "Collection of mighty admin commands",
-	version 					= "1.6",
+	version 					= "1.7",
 	url 						= "http://bcserv.eu/"
 }
 
@@ -752,7 +752,7 @@ public Action:Command_Future(client, args)
 	WritePackString(dataPack, argString);
 	
 	LogAction(client, -1, "\"%L\" time travels the command '%s' into %.2f seconds into the future with %d repeats", client, argString, countdown, repeat);
-	AdminToolsShowActivity(client, Plugin_Tag, "Sends '%s' %d seconds into the future with %d repeats", argString, countdown, repeat);
+	AdminToolsShowActivity(client, Plugin_Tag, "Sends '%s' %.2f seconds into the future with %d repeats", argString, countdown, repeat);
 	return Plugin_Handled;
 }
 
