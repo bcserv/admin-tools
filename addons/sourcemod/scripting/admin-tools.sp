@@ -54,7 +54,7 @@ public Plugin:myinfo = {
 	name 						= "Admin Tools",
 	author 						= "Chanz, Berni",
 	description 				= "Collection of mighty admin commands",
-	version 					= "1.5",
+	version 					= "1.6",
 	url 						= "http://bcserv.eu/"
 }
 
@@ -998,7 +998,7 @@ public Action:Command_Score(client, args) {
 		client,
 		target_list,
 		sizeof(target_list),
-		COMMAND_FILTER_ALIVE,
+		COMMAND_FILTER_CONNECTED,
 		target_name,
 		sizeof(target_name),
 		tn_is_ml
@@ -1054,7 +1054,7 @@ public Action:Command_Deaths(client, args) {
 		client,
 		target_list,
 		sizeof(target_list),
-		COMMAND_FILTER_ALIVE,
+		COMMAND_FILTER_CONNECTED,
 		target_name,
 		sizeof(target_name),
 		tn_is_ml
@@ -1113,7 +1113,7 @@ public Action:Command_Connect(client, args) {
 		client,
 		target_list,
 		sizeof(target_list),
-		COMMAND_FILTER_ALIVE,
+		COMMAND_FILTER_CONNECTED,
 		target_name,
 		sizeof(target_name),
 		tn_is_ml
@@ -2236,7 +2236,7 @@ public Action:Command_Money(client, args) {
 		client,
 		target_list,
 		sizeof(target_list),
-		COMMAND_FILTER_ALIVE,
+		COMMAND_FILTER_CONNECTED,
 		target_name,
 		sizeof(target_name),
 		tn_is_ml
@@ -2307,7 +2307,7 @@ public Action:Command_KSay(client, args) {
 		client,
 		target_list,
 		sizeof(target_list),
-		COMMAND_FILTER_ALIVE,
+		COMMAND_FILTER_CONNECTED,
 		target_name,
 		sizeof(target_name),
 		tn_is_ml
@@ -2501,6 +2501,48 @@ public Action:Command_BalanceTeam(client, args) {
 	
 	LogAction(client, -1, "\"%L\" balances teams by switching %d players to team %s", client, switchCount, teamName);
 	AdminToolsShowActivity(client, Plugin_Tag, "Balance teams by switching %d players to team %s", switchCount, teamName);
+	return Plugin_Handled;
+}
+
+public Action:Command_ScrambleTeam(client, args) {
+	
+	new Handle:playerList = CreateArray();
+
+	LOOP_CLIENTS(player, CLIENTFILTER_TEAMONE||CLIENTFILTER_TEAMTWO) {
+		PushArrayCell(playerList, player);
+	}
+
+	new newTeam = TEAM_ONE;
+	new size = GetArraySize(playerList);
+	while (size > 0) {
+
+		new pick = Math_GetRandomInt(0, size-1);
+	 	SwitchTeam(GetArrayCell(playerList, pick), newTeam);
+	 	newTeam = (newTeam == TEAM_ONE) ? TEAM_TWO : TEAM_ONE;
+
+	 	size--;
+		RemoveFromArray(playerList, pick);
+	}
+	
+	LogAction(client, -1, "\"%L\" scrambled teams", client);
+	AdminToolsShowActivity(client, Plugin_Tag, "Scrambled teams");
+	return Plugin_Handled;
+}
+
+public Action:Command_SwapTeam(client, args) {
+	
+	LOOP_CLIENTS(player, CLIENTFILTER_INGAMEAUTH) {
+
+		new oldTeam = GetClientTeam(player);
+		if (oldTeam != TEAM_ONE && oldTeam != TEAM_TWO) {
+			continue;
+		}
+
+		SwitchTeam(player, (oldTeam == TEAM_ONE) ? TEAM_TWO : TEAM_ONE);
+	}
+	
+	LogAction(client, -1, "\"%L\" swapped teams", client);
+	AdminToolsShowActivity(client, Plugin_Tag, "Swapped teams");
 	return Plugin_Handled;
 }
 
@@ -2826,21 +2868,6 @@ public Action:Command_Point(client,args){
 }
 
 /**************************************************************************************
-	D E P R E C A T E D   C O M M A N D S 
-**************************************************************************************/
-public Action:Command_Deprecated(client,args){
-	
-	decl String:command[MAX_NAME_LENGTH];
-	GetCmdArg(0,command,sizeof(command));
-
-	if(StrContains(command,"entity",false) != -1){
-		PrintToChat(client,"%sCommand '%s' is deprecated, please use sm_input instead!",Plugin_Tag,command);
-	}
-
-	return Plugin_Handled;
-}
-
-/**************************************************************************************
 
 	E V E N T S
 
@@ -3051,28 +3078,21 @@ RegisterAdminTools(){
 	//PluginManager_RegAdminCmd("sm_teamscore", Command_SetTeamScore, ADMFLAG_CUSTOM4, "Sets the score of the target team");
 	//PluginManager_RegAdminCmd("sm_setteamscore", Command_SetTeamScore, ADMFLAG_CUSTOM4, "Sets the score of the target team");
 	PluginManager_RegAdminCmd("sm_balanceteam", Command_BalanceTeam, ADMFLAG_CUSTOM4, "Balances the teams");
-	PluginManager_RegAdminCmd("sm_balanceteams", Command_BalanceTeam, ADMFLAG_CUSTOM4, "Balances the teams");
-	//PluginManager_RegAdminCmd("sm_mixteam", Command_ScrambleTeam, ADMFLAG_CUSTOM4, "Scrambles the teams");
-	//PluginManager_RegAdminCmd("sm_scrambleteam", Command_ScrambleTeam, ADMFLAG_CUSTOM4, "Scrambles the teams");
-	//PluginManager_RegAdminCmd("sm_swapteam", Command_SwapTeam, ADMFLAG_CUSTOM4, "Swaps the teams");
+	PluginManager_RegAdminCmd("sm_scrambleteam", Command_ScrambleTeam, ADMFLAG_CUSTOM4, "Scrambles the teams");
+	PluginManager_RegAdminCmd("sm_swapteam", Command_SwapTeam, ADMFLAG_CUSTOM4, "Swaps the teams");
 
 	// Server
 	PluginManager_RegAdminCmd("sm_reloadmap", Command_ReloadMap, ADMFLAG_CUSTOM4, "Reloads the current map");
 	PluginManager_RegAdminCmd("sm_extend", Command_ExtendMap, ADMFLAG_CUSTOM4, "Extends the current map");
-	//PluginManager_RegAdminCmd("sm_restartround", Command_RestartRound, ADMFLAG_CUSTOM4, "Restarts the round");
-	
-	// Deprecated Commands
-	PluginManager_RegAdminCmd("sm_entity", Command_Deprecated, ADMFLAG_CUSTOM4, "Deprecated please use sm_input");
 }
 
 RegisterDeveloperTools(){
 	
-	// Invisible actions which non admins can't see/notice
+	// Invisible actions which non-admins can't see/notice
 	PluginManager_RegAdminCmd("sm_debug", 			Command_Debug, ADMFLAG_CUSTOM4, "Shows information about the entity you're looking at");
 	
 	// Visible actions which everyone can see/notice
 	PluginManager_RegAdminCmd("sm_point", 			Command_Point, ADMFLAG_CUSTOM4, "Creates an pointing line in the direction you're looking at");
-	
 }
 
 
