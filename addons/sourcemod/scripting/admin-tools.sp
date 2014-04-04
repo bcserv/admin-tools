@@ -2508,7 +2508,10 @@ public Action:Command_ScrambleTeam(client, args) {
 	
 	new Handle:playerList = CreateArray();
 
-	LOOP_CLIENTS(player, CLIENTFILTER_TEAMONE||CLIENTFILTER_TEAMTWO) {
+	LOOP_CLIENTS(player, CLIENTFILTER_TEAMONE) {
+		PushArrayCell(playerList, player);
+	}
+	LOOP_CLIENTS(player, CLIENTFILTER_TEAMTWO) {
 		PushArrayCell(playerList, player);
 	}
 
