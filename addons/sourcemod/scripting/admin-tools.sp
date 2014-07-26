@@ -68,13 +68,16 @@ public Plugin:myinfo = {
 #define FAST_THINK_INTERVAL 0.2
 #define PRINT_SEPERATOR "---------------------------------------------------------------------------------------------------------------"
 
-#define MAX_EVENTS 64
-	
+#define MAX_EVENTS 64	
 #define EVENT_COMMAND_HOOK_MODE EventHookMode_Pre
 
 #define COMMAND_ALIAS_DESCRIPTION "This is a custom generated alias command by Admin-Tools"
 
 #define MAX_BEAM_DURATION 25.0 // 25 is max
+
+#define MAX_BUTTONS 26
+#define BUTTONTRANSITION_IN 1
+#define BUTTONTRANSITION_OUT 0
 /***************************************************************************************
 
 
@@ -141,6 +144,7 @@ new bool:g_bClient_PointActivated[MAXPLAYERS+1];
 new Float:g_flClient_PointSize[MAXPLAYERS+1];
 new bool:g_bClient_IsBuried[MAXPLAYERS+1];
 new bool:g_bClient_HadFirstSpawn[MAXPLAYERS+1];
+new String:g_szClient_Button_Command[MAXPLAYERS+1][2][MAX_BUTTONS][192];
 
 // M i s c
 
@@ -271,6 +275,28 @@ public OnClientPostAdminCheck(client)
 public OnClientDisconnect(client)
 {
 	g_bClient_HadFirstSpawn[client] = false;
+}
+
+public Action:OnPlayerRunCmd(client, &buttons, &impulse, Float:vel[3], Float:angles[3], &weapon, &subtype, &cmdnum, &tickcount, &seed, mouse[2])
+{
+	if (buttons == 0) {
+		return Plugin_Continue;
+	}
+
+	for (new buttonNum = 0; buttonNum<MAX_BUTTONS; buttonNum++) {
+
+		new button = (1 << buttonNum);
+
+		if (buttons & button) {
+
+			if (g_szClient_Button_Command[client][BUTTONTRANSITION_IN][buttonNum][0] != '\0') {
+
+				FakeClientCommand(client, g_szClient_Button_Command[client][BUTTONTRANSITION_IN][buttonNum]);
+			}
+		}
+	}
+
+	return Plugin_Continue;
 }
 
 /**************************************************************************************
@@ -701,6 +727,213 @@ public Action:Command_AliasUse(client, args) {
 	return Plugin_Handled;
 }
 
+stock GetButtonByName(const String:buttonName[])
+{
+	static Handle:trieStore = INVALID_HANDLE;
+
+	if (trieStore == INVALID_HANDLE) {
+		PrintToServer("[DEBUG] Looking up button names");
+		trieStore = CreateTrie();
+		SetTrieValue(trieStore, "attack", (1 << 0));
+		SetTrieValue(trieStore, "jump", (1 << 1));
+		SetTrieValue(trieStore, "duck", (1 << 2));
+		SetTrieValue(trieStore, "forward", (1 << 3));
+		SetTrieValue(trieStore, "back", (1 << 4));
+		SetTrieValue(trieStore, "use", (1 << 5));
+		SetTrieValue(trieStore, "cancel", (1 << 6));
+		SetTrieValue(trieStore, "left", (1 << 7));
+		SetTrieValue(trieStore, "right", (1 << 8));
+		SetTrieValue(trieStore, "moveleft", (1 << 9));
+		SetTrieValue(trieStore, "moveright", (1 << 10));
+		SetTrieValue(trieStore, "attack2", (1 << 11));
+		SetTrieValue(trieStore, "run", (1 << 12));
+		SetTrieValue(trieStore, "reload", (1 << 13));
+		SetTrieValue(trieStore, "alt1", (1 << 14));
+		SetTrieValue(trieStore, "alt2", (1 << 15));
+		SetTrieValue(trieStore, "score", (1 << 16));
+		SetTrieValue(trieStore, "speed", (1 << 17));
+		SetTrieValue(trieStore, "walk", (1 << 18));
+		SetTrieValue(trieStore, "zoom", (1 << 19));
+		SetTrieValue(trieStore, "weapon1", (1 << 20));
+		SetTrieValue(trieStore, "weapon2", (1 << 21));
+		SetTrieValue(trieStore, "bullrush", (1 << 22));
+		SetTrieValue(trieStore, "grenade1", (1 << 23));
+		SetTrieValue(trieStore, "grenade2", (1 << 24));
+		SetTrieValue(trieStore, "attack3", (1 << 25));
+	}
+
+	new button = -1;
+	GetTrieValue(trieStore, buttonName, button);
+	return button;
+}
+
+stock LogarithmBin(value)
+{
+	new count = 0;
+	while (value > 1) {
+		value = (value >> 1);
+		count++;
+	}
+	return count;
+}
+
+public Action:Command_Bind(client, args)
+{
+	if (args < 3) {
+		
+		decl String:command[MAX_NAME_LENGTH];
+		GetCmdArg(0,command,sizeof(command));
+		ReplyToCommand(client, "%sUsage: %s <target> [<+|-><button> <commands>]", Plugin_Tag, command);
+		return Plugin_Handled;
+	}
+
+	decl String:target[MAX_NAME_LENGTH], String:arg2[11];
+	GetCmdArg(1, target, sizeof(target));
+	GetCmdArg(2, arg2, sizeof(arg2));
+
+	decl String:target_name[MAX_TARGET_LENGTH];
+	decl target_list[MAXPLAYERS+1];
+	decl bool:tn_is_ml;
+	
+	new target_count = ProcessTargetString(
+		target,
+		client,
+		target_list,
+		sizeof(target_list),
+		COMMAND_FILTER_ALIVE,
+		target_name,
+		sizeof(target_name),
+		tn_is_ml
+	);
+	
+	if (target_count <= 0) {
+		ReplyToTargetError(client,target_count);
+		return Plugin_Handled;
+	}
+
+	new buttonTransition = -1;
+	if (arg2[0] == '+') {
+		buttonTransition = BUTTONTRANSITION_IN;
+	}
+	else if (arg2[0] == '-') {
+		buttonTransition = BUTTONTRANSITION_OUT;
+	}
+	else {
+		ReplyToCommand(client, "%sThe parameter '+|-' (prefix of the button) seems to be invalid", Plugin_Tag);
+		return Plugin_Handled;
+	}
+
+	new button = GetButtonByName(arg2[1]);
+	if (button == -1) {
+		ReplyToCommand(client, "%sThe parameter 'button' seems to be invalid", Plugin_Tag);
+		return Plugin_Handled;
+	}
+
+	// using +MAX_NAME_LENGTH+11 because target and arg2 are being removed:
+	decl String:argString[192+MAX_NAME_LENGTH+11];
+	GetCmdArgString(argString,sizeof(argString));
+	ReplaceStringEx(argString,sizeof(argString),target,"", -1, -1,false);
+	ReplaceStringEx(argString,sizeof(argString),arg2,"", -1, -1,false);
+	String_Trim(argString,argString,sizeof(argString), " \t\r\n\"");
+	
+	if(argString[0] == '\0') {
+		ReplyToCommand(client, "%sThe parameter 'commands' seems to be invalid. Use sm_unbind to remove a bind from a key", Plugin_Tag);
+		return Plugin_Handled;
+	}
+
+	new buttonNum = LogarithmBin(button);
+
+	for (new i=0; i<target_count; ++i) {
+		strcopy(g_szClient_Button_Command[target_list[i]][buttonTransition][buttonNum], sizeof(g_szClient_Button_Command[][][]), argString);
+	}
+
+	LogAction(client, -1, "\"%L\" binds the command '%s' to the button '%s' for target '%s'", client, argString, arg2, target);
+	AdminToolsShowActivity(client, Plugin_Tag, "Binds the command '%s' to the button '%s' for target '%s'", argString, arg2, target);
+	return Plugin_Handled;
+}
+
+public Action:Command_Unbind(client, args)
+{
+	if (args < 1) {
+		
+		decl String:command[MAX_NAME_LENGTH];
+		GetCmdArg(0,command,sizeof(command));
+		ReplyToCommand(client, "%sUsage: %s <target> [<+|->button]", Plugin_Tag, command);
+		return Plugin_Handled;
+	}
+
+	decl String:target[MAX_NAME_LENGTH];
+	GetCmdArg(1, target, sizeof(target));
+	
+
+	decl String:target_name[MAX_TARGET_LENGTH];
+	decl target_list[MAXPLAYERS+1];
+	decl bool:tn_is_ml;
+	
+	new target_count = ProcessTargetString(
+		target,
+		client,
+		target_list,
+		sizeof(target_list),
+		COMMAND_FILTER_ALIVE,
+		target_name,
+		sizeof(target_name),
+		tn_is_ml
+	);
+	
+	if (target_count <= 0) {
+		ReplyToTargetError(client,target_count);
+		return Plugin_Handled;
+	}
+
+	if (args == 2) {
+
+		decl String:arg2[11];
+		GetCmdArg(2, arg2, sizeof(arg2));
+		new buttonTransition = -1;
+		if (arg2[0] == '+') {
+			buttonTransition = BUTTONTRANSITION_IN;
+		}
+		else if (arg2[0] == '-') {
+			buttonTransition = BUTTONTRANSITION_OUT;
+		}
+		else {
+			ReplyToCommand(client, "%sThe parameter '+|-' (prefix of the button) seems to be invalid", Plugin_Tag);
+			return Plugin_Handled;
+		}
+
+		new button = GetButtonByName(arg2[1]);
+		if (button == -1) {
+			ReplyToCommand(client, "%sThe parameter 'button' seems to be invalid", Plugin_Tag);
+			return Plugin_Handled;
+		}
+
+		new buttonNum = LogarithmBin(button);
+
+		for (new i=0; i<target_count; ++i) {
+			g_szClient_Button_Command[target_list[i]][buttonTransition][buttonNum][0] = '\0';
+		}
+
+		LogAction(client, -1, "\"%L\" unbinds the button '%s' for target '%s'", client, arg2, target);
+		AdminToolsShowActivity(client, Plugin_Tag, "Unbinds the button '%s' for target '%s'", arg2, target);
+	}
+	else {
+
+		for (new i=0; i<target_count; ++i) {
+
+			for (new buttonNum = 0; buttonNum<MAX_BUTTONS; buttonNum++) {
+
+				g_szClient_Button_Command[target_list[i]][0][buttonNum][0] = '\0';
+				g_szClient_Button_Command[target_list[i]][1][buttonNum][0] = '\0';
+			}
+		}
+
+		LogAction(client, -1, "\"%L\" unbinds all buttons for target '%s'", client, target);
+		AdminToolsShowActivity(client, Plugin_Tag, "Unbinds all buttons for target '%s'", target);
+	}
+	return Plugin_Handled;
+}
+
 public Action:Command_Future(client, args)
 {
 	if (args < 2) {
@@ -734,7 +967,7 @@ public Action:Command_Future(client, args)
 	ReplaceStringEx(argString,sizeof(argString),arg2,"", -1, -1,false);
 	String_Trim(argString,argString,sizeof(argString), " \t\r\n\"");
 	
-	if(argString[0] == '\0'){
+	if(argString[0] == '\0') {
 		ReplyToCommand(client, "%sThe parameter 'commands' seems to be invalid", Plugin_Tag);
 		return Plugin_Handled;
 	}
@@ -3038,7 +3271,9 @@ RegisterAdminTools(){
 	PluginManager_RegAdminCmd("sm_event", Command_Event, ADMFLAG_ROOT,"Issues a command when an event is fired");
 	//PluginManager_RegAdminCmd("sm_eventlist", Command_EventList, ADMFLAG_ROOT,"Shows all commands that are issued when events are fired");
 	PluginManager_RegAdminCmd("sm_alias", Command_Alias, ADMFLAG_ROOT,"Creates a new alias command to shrink command chains down to a single command");
-	
+	PluginManager_RegAdminCmd("sm_bind", Command_Bind, ADMFLAG_ROOT,"Binds a command to a button of a client");
+	PluginManager_RegAdminCmd("sm_unbind", Command_Unbind, ADMFLAG_ROOT,"Unbinds a button of a client");
+
 	// Visible actions which everyone can see/notice
 	// Clients & Sometimes Entities
 	PluginManager_RegAdminCmd("sm_hp", Command_Health, ADMFLAG_CUSTOM4,"Sets the health of a target");
