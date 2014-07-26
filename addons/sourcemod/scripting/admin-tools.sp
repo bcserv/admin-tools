@@ -140,7 +140,7 @@ new g_iSprite_LaserBeam = -1;
 new g_iMap_SpawnPoints[MAX_TEAMS];
 
 // Client Variables
-new bool:g_bClient_PointActivated[MAXPLAYERS+1];
+new bool:g_bClient_PointerActivated[MAXPLAYERS+1];
 new Float:g_flClient_PointSize[MAXPLAYERS+1];
 new bool:g_bClient_IsBuried[MAXPLAYERS+1];
 new bool:g_bClient_HadFirstSpawn[MAXPLAYERS+1];
@@ -324,7 +324,7 @@ public Action:Timer_FastThink(Handle:timer){
 	
 	LOOP_CLIENTS(client,CLIENTFILTER_INGAMEAUTH){
 		
-		if(g_bClient_PointActivated[client]){
+		if(g_bClient_PointerActivated[client]){
 			
 			GetClientEyePosition(client,eyePos);
 			Client_GetCrossHairAimPos(client,aimPos);
@@ -3087,9 +3087,9 @@ public Action:Command_Debug(client, args) {
 /**************************************************************************************
 	D E V E L O P E R   T O O L S :   V I S I B L E
 **************************************************************************************/
-public Action:Command_Point(client,args){
+public Action:Command_Pointer(client,args){
 	
-	g_bClient_PointActivated[client] = !g_bClient_PointActivated[client];
+	g_bClient_PointerActivated[client] = !g_bClient_PointerActivated[client];
 	
 	if(args != 0){
 		decl String:argString[11];
@@ -3330,7 +3330,7 @@ RegisterDeveloperTools(){
 	PluginManager_RegAdminCmd("sm_debug", 			Command_Debug, ADMFLAG_CUSTOM4, "Shows information about the entity you're looking at");
 	
 	// Visible actions which everyone can see/notice
-	PluginManager_RegAdminCmd("sm_point", 			Command_Point, ADMFLAG_CUSTOM4, "Creates an pointing line in the direction you're looking at");
+	PluginManager_RegAdminCmd("sm_pointer", 			Command_Pointer, ADMFLAG_CUSTOM4, "Creates an pointing line in the direction you're looking at");
 }
 
 
@@ -3713,7 +3713,7 @@ stock Client_Initialize(client)
 stock Client_InitializeVariables(client)
 {
 	// Client Variables
-	g_bClient_PointActivated[client] = false;
+	g_bClient_PointerActivated[client] = false;
 	g_bClient_IsBuried[client] = false;
 	g_bClient_HadFirstSpawn[client] = false;
 }
