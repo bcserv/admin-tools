@@ -223,10 +223,11 @@ public OnPluginStart()
 	g_evEngine_Version = GetEngineVersion();
 
 	// Check if the extension is loaded
-
 	if (GetExtensionFileStatus("game.cstrike.ext") == 1) {
 		g_bExtensionCstrikeLoaded = true;
 	}
+
+
 }
 
 public OnMapStart()
@@ -332,8 +333,8 @@ public Action:Timer_FastThink(Handle:timer){
 			//TE_SetupGlowSprite(aimPos, g_iSprite_Glow, THINK_INTERVAL, 0.1, 255);
 			//TE_SendToAll();
 			
-			//PrintToChat(client,"eyepos[0]: %f; eyepos[1]: %f; eyepos[2]: %f;",eyePos[0],eyePos[1],eyePos[2]);	
-			//PrintToChat(client,"spriteIndex: %d",g_iSprite_Beam);
+			//PrintToChat(client, "eyepos[0]: %f; eyepos[1]: %f; eyepos[2]: %f;",eyePos[0],eyePos[1],eyePos[2]);	
+			//PrintToChat(client, "spriteIndex: %d",g_iSprite_Beam);
 			
 			TE_SetupBeamPoints(eyePos, aimPos, g_iSprite_LaserBeam, 0, 0, 0, FAST_THINK_INTERVAL, g_flClient_PointSize[client]/2, g_flClient_PointSize[client], 1, 0.0, {255,0,0,255}, 0);
 			TE_SendToAll();
@@ -3209,7 +3210,7 @@ public Action:Event_CommandEvent(Handle:event, const String:name[], bool:dontBro
 			new skip_text;
 			new String:orginalKey[sizeof(command)];
 			new String:key[sizeof(command)];
-
+			// We go trough the string and replace all placeholders with the actual value of the event
 			while ((MatchRegex(regex, command[skip_text])) > 0) {
 
 				// Pick whole string matching with expression pattern.
@@ -3265,29 +3266,40 @@ public Action:Event_CommandEvent(Handle:event, const String:name[], bool:dontBro
 RegisterAdminTools(){
 	
 	// Invisible actions which non admins can't see/notice
-	PluginManager_RegAdminCmd("sm_time", Command_Future, ADMFLAG_ROOT,"Issues a command in the future");
-	PluginManager_RegAdminCmd("sm_future", Command_Future, ADMFLAG_ROOT,"Issues a command in the future");
-	//PluginManager_RegAdminCmd("sm_futurelist", Command_FutureList, ADMFLAG_ROOT,"Shows all commands that are issued in the future");
-	PluginManager_RegAdminCmd("sm_event", Command_Event, ADMFLAG_ROOT,"Issues a command when an event is fired");
-	//PluginManager_RegAdminCmd("sm_eventlist", Command_EventList, ADMFLAG_ROOT,"Shows all commands that are issued when events are fired");
-	PluginManager_RegAdminCmd("sm_alias", Command_Alias, ADMFLAG_ROOT,"Creates a new alias command to shrink command chains down to a single command");
-	PluginManager_RegAdminCmd("sm_bind", Command_Bind, ADMFLAG_ROOT,"Binds a command to a button of a client");
-	PluginManager_RegAdminCmd("sm_unbind", Command_Unbind, ADMFLAG_ROOT,"Unbinds a button of a client");
+	PluginManager_RegAdminCmd("sm_time", Command_Future, ADMFLAG_ROOT, "Issues a command in the future");
+	PluginManager_RegAdminCmd("sm_future", Command_Future, ADMFLAG_ROOT, "Issues a command in the future");
+	//PluginManager_RegAdminCmd("sm_futurelist", Command_FutureList, ADMFLAG_ROOT, "Shows all commands that are issued in the future");
+	// Example: sm_event player_death "sm_ksay #{USERID} you died haha!"
+	PluginManager_RegAdminCmd("sm_event", Command_Event, ADMFLAG_ROOT, "Issues a command when an event is fired");
+	//PluginManager_RegAdminCmd("sm_eventlist", Command_EventList, ADMFLAG_ROOT, "Shows all commands that are issued when events are fired");
+	PluginManager_RegAdminCmd("sm_alias", Command_Alias, ADMFLAG_ROOT, "Creates a new alias command to shrink command chains down to a single command");
+	PluginManager_RegAdminCmd("sm_bind", Command_Bind, ADMFLAG_ROOT, "Binds a command to a button of a client");
+	PluginManager_RegAdminCmd("sm_unbind", Command_Unbind, ADMFLAG_ROOT, "Unbinds a button of a client");
+
+	// Zone Management
+	// Target: sm_point <name> [<<x> <y> <z>>|del|delete] || sm_point -> menu
+	//PluginManager_RegAdminCmd("sm_point", Command_Point, ADMFLAG_ROOT, "Give a name to a coordinate in the world");
+	// Target: sm_zone <name> <start-point> <end-point> <command>
+	// {userid:onfirsttouch} || {userid:onlasttouch} || {userid:ontouching} || {userid:onnottouching}
+	// Ex: sm_zone blockByTeleport blockByTeleport_Start blockByTeleport_End sm_teleport {userid:ontouch}
+	// 
+	//PluginManager_RegAdminCmd("sm_zone_create", Command_ZoneCreate, ADMFLAG_ROOT, "Creates a new zone");
+	//PluginManager_RegAdminCmd("sm_zone", Command_Zone, ADMFLAG_ROOT, "Show the zone menu");
 
 	// Visible actions which everyone can see/notice
 	// Clients & Sometimes Entities
-	PluginManager_RegAdminCmd("sm_hp", Command_Health, ADMFLAG_CUSTOM4,"Sets the health of a target");
-	PluginManager_RegAdminCmd("sm_health", Command_Health, ADMFLAG_CUSTOM4,"Sets the health of a target");
-	PluginManager_RegAdminCmd("sm_mhp", Command_MaxHealth, ADMFLAG_CUSTOM4,"Sets the max health of a target");
-	PluginManager_RegAdminCmd("sm_maxhealth", Command_MaxHealth, ADMFLAG_CUSTOM4,"Sets the max health of a target");
-	PluginManager_RegAdminCmd("sm_armor", Command_Armor, ADMFLAG_CUSTOM4,"Sets the armor of a target");
-	PluginManager_RegAdminCmd("sm_armour", Command_Armor, ADMFLAG_CUSTOM4,"Sets the armor of a target");
-	PluginManager_RegAdminCmd("sm_suitpower", Command_Armor, ADMFLAG_CUSTOM4,"Sets the armor of a target");
-	PluginManager_RegAdminCmd("sm_score", Command_Score, ADMFLAG_CUSTOM4,"Sets the score of a target");
-	PluginManager_RegAdminCmd("sm_deaths", Command_Deaths, ADMFLAG_CUSTOM4,"Sets the deaths of a target");
-	PluginManager_RegAdminCmd("sm_connect", Command_Connect, ADMFLAG_CUSTOM4,"Opens a connect box which the target can accept via F3 (by default)");
-	PluginManager_RegAdminCmd("sm_exec", Command_Exec,ADMFLAG_BAN,"Execute command on target");
-	PluginManager_RegAdminCmd("sm_fexec", Command_FExec,ADMFLAG_BAN,"Fake-execute command on target");
+	PluginManager_RegAdminCmd("sm_hp", Command_Health, ADMFLAG_CUSTOM4, "Sets the health of a target");
+	PluginManager_RegAdminCmd("sm_health", Command_Health, ADMFLAG_CUSTOM4, "Sets the health of a target");
+	PluginManager_RegAdminCmd("sm_mhp", Command_MaxHealth, ADMFLAG_CUSTOM4, "Sets the max health of a target");
+	PluginManager_RegAdminCmd("sm_maxhealth", Command_MaxHealth, ADMFLAG_CUSTOM4, "Sets the max health of a target");
+	PluginManager_RegAdminCmd("sm_armor", Command_Armor, ADMFLAG_CUSTOM4, "Sets the armor of a target");
+	PluginManager_RegAdminCmd("sm_armour", Command_Armor, ADMFLAG_CUSTOM4, "Sets the armor of a target");
+	PluginManager_RegAdminCmd("sm_suitpower", Command_Armor, ADMFLAG_CUSTOM4, "Sets the armor of a target");
+	PluginManager_RegAdminCmd("sm_score", Command_Score, ADMFLAG_CUSTOM4, "Sets the score of a target");
+	PluginManager_RegAdminCmd("sm_deaths", Command_Deaths, ADMFLAG_CUSTOM4, "Sets the deaths of a target");
+	PluginManager_RegAdminCmd("sm_connect", Command_Connect, ADMFLAG_CUSTOM4, "Opens a connect box which the target can accept via F3 (by default)");
+	PluginManager_RegAdminCmd("sm_exec", Command_Exec,ADMFLAG_BAN, "Execute command on target");
+	PluginManager_RegAdminCmd("sm_fexec", Command_FExec,ADMFLAG_BAN, "Fake-execute command on target");
 	PluginManager_RegAdminCmd("sm_render", Command_RenderMode, ADMFLAG_CUSTOM4, "Sets the render mode of a target");
 	PluginManager_RegAdminCmd("sm_rendermode", Command_RenderMode, ADMFLAG_CUSTOM4, "Sets the render mode of a target");
 	PluginManager_RegAdminCmd("sm_fx", Command_RenderFx, ADMFLAG_CUSTOM4, "Sets the render effects (fx) of a target");
@@ -3411,13 +3423,13 @@ ParseEventKV(const String:sPath[PLATFORM_MAX_PATH]) {
 
 DATATYPE:StringTypeToEnumType(const String:type[]){
 	
-	if(StrEqual(type,"bool") || StrEqual(type,"int") || StrEqual(type,"short") || StrEqual(type,"long") || StrEqual(type,"byte")){
+	if(StrEqual(type, "bool") || StrEqual(type, "int") || StrEqual(type, "short") || StrEqual(type, "long") || StrEqual(type, "byte")){
 		return DATATYPE_INT;
 	}
-	else if(StrEqual(type,"float") || StrEqual(type,"double")){
+	else if(StrEqual(type, "float") || StrEqual(type, "double")){
 		return DATATYPE_FLOAT;
 	}
-	else if(StrEqual(type,"string")){
+	else if(StrEqual(type, "string")){
 		return DATATYPE_STRING;
 	}
 	return DATATYPE_UNKNOWEN;
