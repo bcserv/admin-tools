@@ -78,6 +78,11 @@ public Plugin:myinfo = {
 #define MAX_BUTTONS 26
 #define BUTTONTRANSITION_IN 1
 #define BUTTONTRANSITION_OUT 0
+
+#define MULTI_TARGET_DEAD_CT "@dead&ct"
+#define MULTI_TARGET_DEAD_T "@dead&t"
+#define MULTI_TARGET_ALIVE_CT "@alive&ct"
+#define MULTI_TARGET_ALIVE_T "@alive&t"
 /***************************************************************************************
 
 
@@ -166,7 +171,14 @@ public OnPluginStart()
 	
 	// Translations
 	LoadTranslations("common.phrases");
-	
+
+
+	// Target filter
+	AddMultiTargetFilter(MULTI_TARGET_DEAD_CT, TargetFilter_DeadCT, "all dead players in counter-terrorists team", false);
+	AddMultiTargetFilter(MULTI_TARGET_DEAD_T, TargetFilter_DeadT, "all dead players in terrorists team", false);
+	AddMultiTargetFilter(MULTI_TARGET_ALIVE_CT, TargetFilter_AliveCT, "all alive players in counter-terrorists team", false);
+	AddMultiTargetFilter(MULTI_TARGET_ALIVE_T, TargetFilter_AliveT, "all alive players in terrorists team", false);
+
 	
 	// Command Hooks (AddCommandListener) (If the command already exists, like the command kill, then hook it!)
 	
@@ -226,8 +238,15 @@ public OnPluginStart()
 	if (GetExtensionFileStatus("game.cstrike.ext") == 1) {
 		g_bExtensionCstrikeLoaded = true;
 	}
+}
 
-
+public OnPluginEnd()
+{
+	// Target filter
+	RemoveMultiTargetFilter(MULTI_TARGET_DEAD_CT,TargetFilter_DeadCT);
+	RemoveMultiTargetFilter(MULTI_TARGET_DEAD_T, TargetFilter_DeadT);
+	RemoveMultiTargetFilter(MULTI_TARGET_ALIVE_CT, TargetFilter_AliveCT);
+	RemoveMultiTargetFilter(MULTI_TARGET_ALIVE_T,TargetFilter_AliveT);
 }
 
 public OnMapStart()
@@ -311,6 +330,60 @@ public Action:OnPlayerRunCmd(client, &buttons, &impulse, Float:vel[3], Float:ang
 public bool:TraceFilter_FilterPlayer(entity, contentsMask){
 	
 	return entity > MaxClients || !entity;
+}
+
+// Multi Target Filters
+public bool:TargetFilter_DeadCT(const String:strPattern[], Handle:hClients)
+{
+	new bool:foundAtLeastOne = false;
+	LOOP_CLIENTS(client, CLIENTFILTER_DEAD) {
+		
+		if (GetClientTeam(client) == CS_TEAM_CT) {
+
+			foundAtLeastOne = true;
+			PushArrayCell(hClients, client);
+		}
+	}
+	return foundAtLeastOne;
+}
+public bool:TargetFilter_DeadT(const String:strPattern[], Handle:hClients)
+{
+	new bool:foundAtLeastOne = false;
+	LOOP_CLIENTS(client, CLIENTFILTER_DEAD) {
+		
+		if (GetClientTeam(client) == CS_TEAM_T) {
+
+			foundAtLeastOne = true;
+			PushArrayCell(hClients, client);
+		}
+	}
+	return foundAtLeastOne;
+}
+public bool:TargetFilter_AliveCT(const String:strPattern[], Handle:hClients)
+{
+	new bool:foundAtLeastOne = false;
+	LOOP_CLIENTS(client, CLIENTFILTER_ALIVE) {
+		
+		if (GetClientTeam(client) == CS_TEAM_CT) {
+
+			foundAtLeastOne = true;
+			PushArrayCell(hClients, client);
+		}
+	}
+	return foundAtLeastOne;
+}
+public bool:TargetFilter_AliveT(const String:strPattern[], Handle:hClients)
+{
+	new bool:foundAtLeastOne = false;
+	LOOP_CLIENTS(client, CLIENTFILTER_ALIVE) {
+		
+		if (GetClientTeam(client) == CS_TEAM_T) {
+
+			foundAtLeastOne = true;
+			PushArrayCell(hClients, client);
+		}
+	}
+	return foundAtLeastOne;
 }
 
 /**************************************************************************************
@@ -2565,7 +2638,7 @@ public Action:Command_KSay(client, args) {
 	GetCmdArgString(argString, sizeof(argString));
 
 	// Replace all the escaped \n with actual \n.
-	ReplaceStringEx(argString, sizeof(argString), "\\n", "\n", -1, -1, false);
+	ReplaceString(argString, sizeof(argString), "\\n", "\n", false);
 
 	// Remove the first and second argument.
 	ReplaceStringEx(argString,sizeof(argString),target,"", -1, -1, false);
@@ -2577,8 +2650,8 @@ public Action:Command_KSay(client, args) {
 		return Plugin_Handled;
 	}
 	
-	LogAction(client, -1, "\"%L\" triggered sm_ksay, target: %s, duration %.1f (text  %s)", client, target, duration, argString);
-	AdminToolsShowActivity(client, Plugin_Tag, "triggered sm_ksay, target: %s, duration %.1f (text  %s)", target, duration, argString);
+	LogAction(client, -1, "\"%L\" triggered sm_ksay, target: %s, duration: %.1f (text: %s)", client, target, duration, argString);
+	AdminToolsShowActivity(client, Plugin_Tag, "triggered sm_ksay, target: %s, duration: %.1f (text: %s)", target, duration, argString);
 
 	// Datapack:
 	// Float duration
@@ -2646,6 +2719,85 @@ public Action:Timer_KSay(Handle:timer, any:dataPack) {
 	return Plugin_Continue;
 }
 
+public Action:Command_MenuSay(client, args) {
+
+	if (args < 3) {
+		
+		decl String:command[MAX_NAME_LENGTH];
+		GetCmdArg(0,command,sizeof(command));
+		ReplyToCommand(client, "%sUsage: %s <target> <duration> <text>",Plugin_Tag,command);
+		return Plugin_Handled;
+	}
+	
+	decl String:target[MAX_TARGET_LENGTH];
+	GetCmdArg(1, target, sizeof(target));
+	
+	decl String:target_name[MAX_TARGET_LENGTH];
+	decl target_list[MAXPLAYERS+1];
+	decl bool:tn_is_ml;
+	
+	new target_count = ProcessTargetString(
+		target,
+		client,
+		target_list,
+		sizeof(target_list),
+		COMMAND_FILTER_CONNECTED,
+		target_name,
+		sizeof(target_name),
+		tn_is_ml
+	);
+	
+	if (target_count <= 0) {
+		ReplyToTargetError(client, target_count);
+		return Plugin_Handled;
+	}
+
+	decl String:arg2[11];
+	GetCmdArg(2, arg2, sizeof(arg2));
+	new duration = StringToInt(arg2);
+	if (duration <= 0) {
+		ReplyToCommand(client, "%sThe parameter 'duration' seems to be invalid", Plugin_Tag);
+		return Plugin_Handled;
+	}
+
+	// using 11+MAX_TARGET_LENGTH because target and arg2 are being removed:
+	decl String:argString[192+11+MAX_TARGET_LENGTH];
+	GetCmdArgString(argString, sizeof(argString));
+
+	// Replace all the escaped \n with actual \n.
+	ReplaceString(argString, sizeof(argString), "\\n", "\n", false);
+
+	// Remove the first and second argument.
+	ReplaceStringEx(argString,sizeof(argString),target,"", -1, -1, false);
+	ReplaceStringEx(argString,sizeof(argString),arg2,"", -1, -1, false);
+	String_Trim(argString,argString,sizeof(argString), " \t\"");
+
+	if(argString[0] == '\0'){
+		ReplyToCommand(client, "%sThe parameter 'text' seems to be invalid", Plugin_Tag);
+		return Plugin_Handled;
+	}
+
+	new Handle:menu = CreateMenu(Handle_MenuSay);
+	SetMenuTitle(menu, "");
+	AddMenuItem(menu, "", argString);
+
+	for (new i=0; i<target_count; ++i) {
+
+		DisplayMenu(menu, target_list[i], duration);
+		PrintToChat(target_list[i], argString);
+	}
+	
+	LogAction(client, -1, "\"%L\" triggered sm_menusay, target: %s, duration: %d (text: %s)", client, target, duration, argString);
+	AdminToolsShowActivity(client, Plugin_Tag, "triggered sm_menusay, target: %s, duration: %d (text: %s)", target, duration, argString);
+	return Plugin_Handled;
+}
+
+public Handle_MenuSay(Handle:menu, MenuAction:action, client, item)
+{
+	if (action == MenuAction_End) {
+		CloseHandle(menu);
+	}
+}
 /**************************************************************************************
 	T E A M
 **************************************************************************************/
@@ -3323,6 +3475,7 @@ RegisterAdminTools(){
 	PluginManager_RegAdminCmd("sm_money", Command_Money, ADMFLAG_CUSTOM4, "Set money for the given target");
 	PluginManager_RegAdminCmd("sm_cash", Command_Money, ADMFLAG_CUSTOM4, "Set money for the given target");
 	PluginManager_RegAdminCmd("sm_ksay", Command_KSay, ADMFLAG_CUSTOM4, "Sends a message to the key hint box");
+	PluginManager_RegAdminCmd("sm_menusay", Command_MenuSay, ADMFLAG_CUSTOM4, "Sends a message within the menu on the left side");
 	
 	// Teams
 	//PluginManager_RegAdminCmd("sm_teamscore", Command_SetTeamScore, ADMFLAG_CUSTOM4, "Sets the score of the target team");
