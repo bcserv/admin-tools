@@ -3429,11 +3429,13 @@ RegisterAdminTools(){
 	PluginManager_RegAdminCmd("sm_unbind", Command_Unbind, ADMFLAG_ROOT, "Unbinds a button of a client");
 
 	// Zone Management
-	// Target: sm_point <name> [<<x> <y> <z>>|del|delete] || sm_point -> menu
+	// Target: sm_point <name> [<<x> <y> <z>>|del|delete] || sm_point <name> -> menu
 	//PluginManager_RegAdminCmd("sm_point", Command_Point, ADMFLAG_ROOT, "Give a name to a coordinate in the world");
-	// Target: sm_zone <name> <start-point> <end-point> <command>
+
+	// Target: sm_zone_create <name> <start-point> <end-point> <command>
 	// {userid:onfirsttouch} || {userid:onlasttouch} || {userid:ontouching} || {userid:onnottouching}
-	// Ex: sm_zone blockByTeleport blockByTeleport_Start blockByTeleport_End sm_teleport {userid:ontouch}
+	// {entitiy:oft} || {entity:olt} || {entity:ot} || {entity:ont} <-- how to handle entities? using @<hammer-ip> and if there is no hammerid, then create one? But then create the hammerid on start of the map?
+	// Ex: sm_zone blockByTeleport blockByTeleport_Start blockByTeleport_End sm_teleport {userid:ontouch} 123 123 123
 	// 
 	//PluginManager_RegAdminCmd("sm_zone_create", Command_ZoneCreate, ADMFLAG_ROOT, "Creates a new zone");
 	//PluginManager_RegAdminCmd("sm_zone", Command_Zone, ADMFLAG_ROOT, "Show the zone menu");
